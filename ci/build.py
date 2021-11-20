@@ -42,6 +42,7 @@ def build_plugin(plugin: Path):
     collect_script = list(plugin.glob("scripting/*.sp"))
     main_script: Path = None
     for path in collect_script:
+        print(path.name.casefold(), plugin.name.casefold())
         if path.name.casefold() == plugin.name.casefold() + ".sp":
             main_script = path
             break
@@ -68,7 +69,7 @@ def build_plugin(plugin: Path):
     et = time.monotonic()
     final_size = final_smx.stat().st_size
     print(f"=> 📦 => 🔨 Finished: {final_smx.name} in {et - st}s ({final_size} bytes)")
-    for script in main_script:
+    for script in collect_script:
         shutil.copyfile(script, scripting_folder / script.name)
     if target_include_folder is not None:
         for include in include_folder.glob("*.inc"):
