@@ -1,0 +1,6 @@
+# Compiled build
+*.smx
+build/
+
+# Python bytes
+__pycache__

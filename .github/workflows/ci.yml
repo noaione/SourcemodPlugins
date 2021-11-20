@@ -1,0 +1,47 @@
+name: CI
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sm-version: ["1.10.x"]
+
+    name: Build with SM ${{ matrix.sm-version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Setup SourcePawn
+        uses: rumblefrog/setup-sp@master
+        with:
+          version: ${{ matrix.sm-version }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9.x"
+
+      - name: Get the version
+        id: get_version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Execute Build
+        run: |
+          python3 ci/build.py
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v2
+        with:
+          name: N4O_Sourcemod_Plugins_${{ matrix.sm-version }}
+          path: build/
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Sourcemod Plugins Pack ${{ steps.get_version.outputs.VERSION }}
+          files:
+            N4O_Sourcemod_Plugins_${{ steps.get_version.outputs.VERSION }}.zip
