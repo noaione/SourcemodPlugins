@@ -1,0 +1,3 @@
+[submodule ".\\plugins\\OnlyMySteamGroup"]
+	path = .\\plugins\\OnlyMySteamGroup
+	url = https://github.com/noaione/OnlyMySteamGroup.git
