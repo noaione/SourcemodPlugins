@@ -27,6 +27,7 @@ import shutil
 import subprocess as sp
 import time
 from pathlib import Path
+from typing import List
 
 base_dir = Path(__file__).absolute().parent.parent
 build_dir = base_dir / "build"
@@ -37,12 +38,79 @@ plugins = list((base_dir / "plugins").glob("*"))
 print(f"📍 Found {len(plugins)} plugins!")
 
 
+def parse_extract_sp(sp_result: bytes):
+    decoded = sp_result.decode("utf-8")
+    lines = decoded.split("\n")
+
+    valid_lines = {
+        "code": "0 bytes",
+        "data": "0 bytes",
+    }
+    for line in lines:
+        if "size" in line.casefold():
+            split_l = line.strip().split(" ")
+            slast = " ".join(split_l[-2:])
+            if split_l[0].casefold() in valid_lines:
+                valid_lines[split_l[0].lower()] = slast
+    return valid_lines
+
+
+def find_error(sp_result: bytes):
+    decoded = sp_result.decode("utf-8")
+
+    lines = decoded.split("\n")
+    error_thing: List[str] = []
+    for ix, line in enumerate(lines):
+        if ix == 0:
+            continue
+        if "copyright (c)" in line.casefold():
+            continue
+        if "size" in line.casefold():
+            continue
+        if line.strip() == "":
+            continue
+        error_thing.append(line.strip())
+    return "\n".join(error_thing)
+
+
+def execute_build(entry: Path):
+    mono_start = time.monotonic()
+    p = sp.Popen(
+        ["spcomp", f"scripting/{entry.name}"],
+        stdout=sp.PIPE,
+        stderr=sp.PIPE,
+    )
+
+    out, _ = p.communicate()
+    rc = p.returncode
+    mono_end = time.monotonic()
+    delta = mono_end - mono_start
+    if rc == 0:
+        print(f"=> 📦 => 🔨 Build {entry.name} successful! (done in {delta:.2f}s)")
+        metadata = parse_extract_sp(out)
+        smx_file_candidate = [
+            entry.parent / f"{entry.stem}.smx",
+            entry.parent.parent / f"{entry.stem}.smx",
+        ]
+        print(f"=> 📦 => 🔨 => 📊 Code size: {metadata['code']}")
+        print(f"=> 📦 => 🔨 => 📊 Compiled size: {metadata['data']}")
+        smx_file: Path = None
+        for file in smx_file_candidate:
+            if file.exists():
+                smx_file = file
+                break
+        return smx_file
+    error = find_error(out)
+    print(f"=> 📦 => 🔨 => 💥 Build {entry.name} failed!")
+    print(f"=> 📦 => 🔨 => 💥 Trace:\n{error}")
+    return None
+
+
 def build_plugin(plugin: Path):
     print(f"=> 📦 Packaging: {plugin.name}")
     collect_script = list(plugin.glob("scripting/*.sp"))
     main_script: Path = None
     for path in collect_script:
-        print(path.name.casefold(), plugin.name.casefold())
         if path.name.casefold() == plugin.name.casefold() + ".sp":
             main_script = path
             break
@@ -62,13 +130,10 @@ def build_plugin(plugin: Path):
         target_include_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"=> 📦 => 🔨 Building: {main_script.name}")
-    final_smx = plugin / f"{main_script.stem}.smx"
     os.chdir(plugin)
-    st = time.monotonic()
-    sp.run(["spcomp", f"scripting/{main_script.name}"])
-    et = time.monotonic()
-    final_size = final_smx.stat().st_size
-    print(f"=> 📦 => 🔨 Finished: {final_smx.name} in {et - st}s ({final_size} bytes)")
+    final_smx = execute_build(main_script)
+    if final_smx is None:
+        return
     for script in collect_script:
         shutil.copyfile(script, scripting_folder / script.name)
     if target_include_folder is not None:
