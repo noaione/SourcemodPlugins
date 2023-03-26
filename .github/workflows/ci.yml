@@ -1,12 +1,14 @@
 name: CI
-on: [push]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        sm-version: ["1.10.x"]
+        sm-version: ["1.11.x"]
 
     name: Build with SM ${{ matrix.sm-version }}
     steps:
